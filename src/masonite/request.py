@@ -10,6 +10,7 @@ of this class.
 
 import re
 import cgi
+import json
 from cgi import MiniFieldStorage
 from http import cookies
 from urllib.parse import parse_qs, quote
@@ -26,6 +27,7 @@ from .helpers.status import response_statuses
 from .helpers.time import cookie_expire_time
 from .cookies import CookieJar
 from .headers import HeaderBag, Header
+from .input.InputBag import InputBag
 from .response import Response
 
 
@@ -51,6 +53,7 @@ class Request(Extendable):
         """
         self.cookie_jar = CookieJar()
         self.header_bag = HeaderBag()
+        self.input_bag = InputBag()
         self.url_params = {}
         self.redirect_url = False
         self.redirect_route = False
@@ -84,20 +87,9 @@ class Request(Extendable):
         """
         name = str(name)
 
-        if "." in name and isinstance(
-            self.request_variables.get(name.split(".")[0]), dict
-        ):
-            return clean_request_input(
-                DictDot().dot(name, self.request_variables, default=default),
-                clean=clean,
-            )
-
-        elif "." in name:
-            name = dot(name, "{1}[{.}]")
-
-        return clean_request_input(
-            self.request_variables.get(name, default), clean=clean, quote=quote
-        )
+        print('cc', self.input_bag.get(name, default=default))
+        print('clean', clean_request_input(self.input_bag.get(name, default=default), clean=clean, quote=quote))
+        return clean_request_input(self.input_bag.get(name, default=default), clean=clean, quote=quote)
 
     def query(self, name, default=None, multi=False):
         """Get a specific query string value.
@@ -192,14 +184,14 @@ class Request(Extendable):
         if isinstance(self.raw_input, list):
             return self.raw_input
 
-        if not internal_variables:
-            without_internals = {}
-            for key, value in self.request_variables.items():
-                if not key.startswith("__"):
-                    without_internals.update({key: value})
-            return clean_request_input(without_internals, clean=clean, quote=quote)
+        # if not internal_variables:
+        #     without_internals = {}
+        #     for key, value in self.request_variables.items():
+        #         if not key.startswith("__"):
+        #             without_internals.update({key: value})
+        #     return clean_request_input(without_internals, clean=clean, quote=quote)
 
-        return clean_request_input(self.request_variables, clean=clean, quote=quote)
+        return clean_request_input(self.input_bag.all_as_values(internal_variables=internal_variables), clean=clean, quote=quote)
 
     def only(self, *names):
         """Return the specified request variables in a dictionary.
@@ -210,7 +202,7 @@ class Request(Extendable):
         only_vars = {}
 
         for name in names:
-            only_vars[name] = self.request_variables.get(name)
+            only_vars[name] = self.input_bag.get(name)
 
         return only_vars
 
@@ -251,6 +243,7 @@ class Request(Extendable):
         """
         self.environ = environ
         self.header_bag.load(environ)
+        self.input_bag.load(environ)
         self.method = environ["REQUEST_METHOD"]
         self.path = environ["PATH_INFO"]
         self.request_variables = {}
@@ -395,7 +388,8 @@ class Request(Extendable):
         Returns:
             bool
         """
-        return all((arg in self.request_variables) for arg in args)
+        return self.input_bag.has(*args)
+        # return all((arg in self.request_variables) for arg in args)
 
     def scheme(self):
         """Get the current request url scheme
@@ -665,7 +659,6 @@ class Request(Extendable):
         if expires:
             expires = cookie_expire_time(expires)
 
-        print('adding cookie', key, expires)
         self.cookie_jar.add(
             key, value, expires=expires, http_only=http_only, path=path, timezone="GMT"
         )
@@ -956,6 +949,7 @@ class Request(Extendable):
         self.with_input()
 
         redirect_url = self.input("__back")
+
 
         if not redirect_url and default:
             return self.redirect(default)

@@ -52,7 +52,6 @@ class TestUnitTest(TestCase):
         )
 
     def test_can_have_user(self):
-
         self.assertTrue(
             self.actingAs(User.find(1)).post('/unit/test/user').contains('Joe')
         )

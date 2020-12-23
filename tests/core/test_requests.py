@@ -51,7 +51,7 @@ class TestRequest(unittest.TestCase):
         self.assertEqual(self.request.all(), {'application': 'Masonite'})
 
     def test_request_all_without_internal_request_variables(self):
-        self.request.request_variables.update({'__token': 'testing', 'application': 'Masonite'})
+        self.request.input_bag.query_string.update({'__token': 'testing', 'application': 'Masonite'})
         self.assertEqual(self.request.all(), {'__token': 'testing', 'application': 'Masonite'})
         self.assertEqual(self.request.all(internal_variables=False), {'application': 'Masonite'})
 
@@ -60,7 +60,7 @@ class TestRequest(unittest.TestCase):
         self.assertEqual(self.request.has('shouldreturnfalse'), False)
 
     def test_request_has_should_accept_multiple_values(self):
-        self.request.request_variables.update({'__token': 'testing', 'application': 'Masonite'})
+        self.request.input_bag.query_string = {'__token': 'testing', 'application': 'Masonite'}
         self.assertEqual(self.request.has('application'), True)
         self.assertEqual(self.request.has('shouldreturnfalse'), False)
         self.assertEqual(self.request.has('__token'), True)
@@ -78,7 +78,7 @@ class TestRequest(unittest.TestCase):
         self.assertEqual(self.request.param('nullvalue'), False)
 
     def test_request_input_can_get_dictionary_elements(self):
-        self.request.request_variables = {
+        self.request.input_bag.query_string = {
             "user": {
                 "address": [
                     {"id": 1, 'street': 'A Street'},
@@ -88,24 +88,6 @@ class TestRequest(unittest.TestCase):
         }
         self.assertEqual(self.request.input('user.address.*.id'), [1, 2])
         self.assertEqual(self.request.input('user.address.*.street'), ['A Street', 'B Street'])
-
-    def test_request_input_parses_query_string(self):
-        query_string = "filter=name"
-        self.request._set_standardized_request_variables(query_string)
-        self.request._set_standardized_request_variables(query_string)
-        self.assertEqual(self.request.input('filter'), 'name')
-
-        query_string = "filter=name&user=Joe"
-        self.request._set_standardized_request_variables(query_string)
-        self.assertEqual(self.request.input('filter'), 'name')
-        self.assertEqual(self.request.input('user'), 'Joe')
-
-        query_string = "filter[name]=Joe&filter[email]=user@email.com"
-        self.request._set_standardized_request_variables(query_string)
-        self.assertEqual(self.request.input('filter')['name'], 'Joe')
-        self.assertEqual(self.request.input('filter.name'), 'Joe')
-        self.assertEqual(self.request.input('filter')['email'], 'user@email.com')
-        self.assertEqual(self.request.input('filter.email'), 'user@email.com')
 
     def test_request_sets_and_gets_cookies(self):
         self.request.cookie('setcookie', 'value', encrypt=False)
@@ -140,41 +122,16 @@ class TestRequest(unittest.TestCase):
     def test_request_no_input_returns_false(self):
         self.assertEqual(self.request.input('notavailable'), False)
 
-    def test_request_mini_field_storage_returns_single_value(self):
-        storages = {'test': [MiniFieldStorage('key', '1')]}
-        self.request._set_standardized_request_variables(storages)
-        self.assertEqual(self.request.input('test'), '1')
 
     def test_request_can_get_string_value(self):
         storages = {'test': 'value'}
-        self.request._set_standardized_request_variables(storages)
+        self.request.input_bag.query_string = storages
         self.assertEqual(self.request.input('test'), 'value')
 
     def test_request_can_get_list_value(self):
         storages = {'test': ['foo', 'bar']}
-        self.request._set_standardized_request_variables(storages)
+        self.request.input_bag.query_string = storages
         self.assertEqual(self.request.input('test'), ['foo', 'bar'])
-
-    def test_request_mini_field_storage_doesnt_return_brackets(self):
-        storages = {'test[]': [MiniFieldStorage('key', '1')]}
-        self.request._set_standardized_request_variables(storages)
-        self.assertEqual(self.request.input('test'), '1')
-
-    def test_request_mini_field_storage_index(self):
-        storages = {'test[index]': [MiniFieldStorage('key', '1')]}
-        self.request._set_standardized_request_variables(storages)
-        self.assertEqual(self.request.input('test[index]'), '1')
-
-    def test_request_mini_field_storage_with_dot_notation(self):
-        storages = {'test[index]': [MiniFieldStorage('key', '1')]}
-        self.request._set_standardized_request_variables(storages)
-        self.assertEqual(self.request.input('test.index'), '1')
-
-    def test_request_mini_field_storage_returns_a_list(self):
-        storages = {'test': [MiniFieldStorage(
-            'key', '1'), MiniFieldStorage('key', '2')]}
-        self.request._set_standardized_request_variables(storages)
-        self.assertEqual(self.request.input('test'), ['1', '2'])
 
     def test_request_get_cookies_returns_cookies(self):
         self.assertEqual(self.request.get_cookies(), self.request.cookie_jar)
@@ -215,7 +172,7 @@ class TestRequest(unittest.TestCase):
             container.resolve(located_provider.boot)
 
         self.assertEqual(container.make('Request').input('application'), 'Masonite')
-        self.assertEqual(container.make('Request').all(), {'application': 'Masonite'})
+        self.assertEqual(container.make('Request').all()['application'], "Masonite")
         container.make('Request').environ['REQUEST_METHOD'] = 'POST'
         self.assertEqual(container.make('Request').environ['REQUEST_METHOD'], 'POST')
         self.assertEqual(container.make('Request').input('application'), 'Masonite')
@@ -445,7 +402,7 @@ class TestRequest(unittest.TestCase):
         app.bind('Request', self.request)
         request = app.make('Request').load_app(app)
 
-        request._set_standardized_request_variables({
+        request.input_bag.query_string = {
             "gateway": "RENDIMENTO",
             "request": {
                 "user": "data",
@@ -453,7 +410,7 @@ class TestRequest(unittest.TestCase):
             },
             "response": None,
             "description": "test only"
-        })
+        }
 
         self.assertEqual(request.input('request.age'), None)
         self.assertEqual(request.input('request.age', default=1), None)
@@ -464,7 +421,7 @@ class TestRequest(unittest.TestCase):
         app.bind('Request', self.request)
         request = app.make('Request').load_app(app)
 
-        request._set_standardized_request_variables([{"key": "val"}, {"item2": "val2"}])
+        request.input_bag.query_string = [{"key": "val"}, {"item2": "val2"}]
 
         self.assertEqual(request.input(0)['key'], 'val')
         self.assertEqual(request.input('0')['key'], 'val')
@@ -475,7 +432,7 @@ class TestRequest(unittest.TestCase):
         app.bind('Request', self.request)
         request = app.make('Request').load_app(app)
 
-        request._set_standardized_request_variables([{"key": "val"}, {"item2": "val2"}])
+        request.input_bag.query_string = [{"key": "val"}, {"item2": "val2"}]
 
         self.assertIsInstance(request.all(), list)
         self.assertEqual(request.all()[0]['key'], 'val')
@@ -485,7 +442,9 @@ class TestRequest(unittest.TestCase):
         app.bind('Request', self.request)
         request = app.make('Request').load_app(app)
 
-        request._set_standardized_request_variables([{"key": "val"}, {"item2": "val2", "inner": {"value": "innervalue"}}, {"item3": [1, 2]}])
+        request.input_bag.query_string = [{"key": "val"}, {"item2": "val2", "inner": {"value": "innervalue"}}, {"item3": [1, 2]}]
+
+        # request._set_standardized_request_variables()
 
         self.assertEqual(request.input('0.key'), 'val')
         self.assertEqual(request.input('1.item2'), 'val2')
@@ -514,7 +473,7 @@ class TestRequest(unittest.TestCase):
         wsgi_environ['wsgi.input'] = MockWsgiInput('{"key": "val"}')
         route.load_environ(wsgi_environ)
         request.load_environ(wsgi_environ)
-        self.assertEqual(request.all(), {"key": "val"})
+        self.assertEqual(request.all(), {'application': 'Masonite', 'key': 'val'})
 
     def test_request_gets_correct_header(self):
         app = App()
@@ -622,7 +581,7 @@ class TestRequest(unittest.TestCase):
         self.assertEqual(request.get_request_method(), 'PUT')
 
     def test_request_has_should_pop_variables_from_input(self):
-        self.request.request_variables.update({'key1': 'test', 'key2': 'test'})
+        self.request.input_bag.query_string.update({'key1': 'test', 'key2': 'test'})
         self.request.pop('key1', 'key2')
         self.assertEqual(self.request.request_variables, {'application': 'Masonite'})
         self.request.pop('shouldnotexist')
@@ -709,7 +668,7 @@ class TestRequest(unittest.TestCase):
         self.assertTrue(self.request.contains('/dashboard/user/*:string/*:int'))
 
     def test_request_can_get_input_as_properties(self):
-        self.request.request_variables = {'test': 'hey'}
+        self.request.input_bag.query_string = {'test': 'hey'}
         self.assertEqual(self.request.test, 'hey')
         self.assertEqual(self.request.input('test'), 'hey')
 
@@ -726,33 +685,33 @@ class TestRequest(unittest.TestCase):
         self.request.back(default='/home')
         self.assertEqual(self.request.redirect_url, '/home')
 
-        self.request.request_variables = {'__back': '/login'}
+        self.request.input_bag.query_string = {'__back': '/login'}
         self.request.back(default='/home')
         self.assertEqual(self.request.redirect_url, '/login')
 
     def test_request_without(self):
-        self.request.request_variables.update({'__token': 'testing', 'application': 'Masonite'})
+        self.request.input_bag.query_string.update({'__token': 'testing', 'application': 'Masonite'})
         self.assertEqual(self.request.without('__token'), {'application': 'Masonite'})
 
     def test_request_only_returns_specified_values(self):
-        self.request.request_variables.update({'__token': 'testing', 'application': 'Masonite'})
+        self.request.input_bag.query_string.update({'__token': 'testing', 'application': 'Masonite'})
         self.assertEqual(self.request.only('application'), {'application': 'Masonite'})
         self.assertEqual(self.request.only('__token'), {'__token': 'testing'})
 
     def test_request_gets_only_clean_output(self):
-        self.request._set_standardized_request_variables({'key': '<img """><script>alert(\'hey\')</script>">', 'test': "awesome! 'this is a test'"})
+        self.request.input_bag.query_string = {'key': '<img """><script>alert(\'hey\')</script>">', 'test': "awesome! 'this is a test'"}
         self.assertEqual(self.request.input('key', clean=True), '&lt;img &quot;&quot;&quot;&gt;&lt;script&gt;alert(&#x27;hey&#x27;)&lt;/script&gt;&quot;&gt;')
         self.assertEqual(self.request.input('key', clean=False), '<img """><script>alert(\'hey\')</script>">')
         self.assertEqual(self.request.input('test', clean=True, quote=False), "awesome! 'this is a test'")
 
     def test_request_cleans_all_optionally(self):
-        self.request._set_standardized_request_variables({'key': '<img """><script>alert(\'hey\')</script>">', 'test': "awesome! 'this is a test'"})
+        self.request.input_bag.query_string = {'key': '<img """><script>alert(\'hey\')</script>">', 'test': "awesome! 'this is a test'"}
         self.assertEqual(self.request.all()['key'], '&lt;img &quot;&quot;&quot;&gt;&lt;script&gt;alert(&#x27;hey&#x27;)&lt;/script&gt;&quot;&gt;')
         self.assertEqual(self.request.all(clean=False)['key'], '<img """><script>alert(\'hey\')</script>">')
         self.assertEqual(self.request.all(quote=False)['test'], "awesome! 'this is a test'")
 
     def test_request_gets_input_with_dotdict(self):
-        self.request.request_variables = {
+        self.request.input_bag.query_string = {
             "key": {
                 "user": "1",
                         "name": "Joe",

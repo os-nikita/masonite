@@ -13,6 +13,7 @@ from .generate_wsgi import generate_wsgi
 from .create_container import create_container
 from masoniteorm.factories import Factory
 from ..response import Response
+from ..auth import Auth
 
 from .MockRoute import MockRoute
 from ..helpers import config
@@ -226,13 +227,10 @@ class TestCase(unittest.TestCase):
         wsgi = generate_wsgi()
         wsgi.update(wsgi_values)
         self.container.bind("Environ", wsgi)
-        self.container.bind("User", self.acting_user)
+        
 
         if self._with_subdomains:
             self.container.bind("Subdomains", True)
-
-        # if self.headers:
-        #     self.container.make("Request").header(self.headers)
 
         if self.route_middleware:
             self.container.bind("RouteMiddleware", self.route_middleware)
@@ -245,14 +243,11 @@ class TestCase(unittest.TestCase):
             self.container.bind("HttpMiddleware", config("middleware.http_middleware"))
         else:
             self.container.bind("HttpMiddleware", self.http_middleware)
-        # self.container.bind("RouteMiddleware", config("middleware.route_middleware"))
-
-        # if self.http_middleware is not False:
-        #     self.container.bind("HttpMiddleware", self.http_middleware)
 
         try:
             for provider in self.container.make("WSGIProviders"):
                 self.container.resolve(provider.boot)
+                self.container.make('Request')._test_user = self.acting_user
         except Exception as e:  # skipcq
             if self._exception_handling:
                 self.container.make("ExceptionHandler").load_exception(e)

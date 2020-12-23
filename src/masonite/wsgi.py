@@ -1,4 +1,8 @@
+from urllib.parse import parse_qs, quote
+from src.masonite.input.InputBag import InputBag
+
 def response_handler(environ, start_response):
+
     """The WSGI Application Server.
 
     Arguments:
@@ -17,6 +21,17 @@ def response_handler(environ, start_response):
     """
 
     container.bind("Environ", environ)
+
+    # try:
+    #     request_body_size = int(environ.get('CONTENT_LENGTH', 0))
+    # except (ValueError):
+    #     request_body_size = 0
+
+    bag = InputBag()
+    bag.parse(environ)
+    print(bag.all())
+    # for key, value in parse_qs(request_body).items():
+    #     print('k', key.decode('utf-8'), 'v:', value[0].decode('utf-8'))
 
     """Execute All Service Providers That Require The WSGI Server
     Run all service provider boot methods if the wsgi attribute is true.
