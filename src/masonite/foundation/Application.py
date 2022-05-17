@@ -20,6 +20,11 @@ class Application(Container):
         self.response_handler: ResponseHandler
         self.providers: list = []
 
+        # If the application itself is ever being resolved, make sure
+        # that it is returned.
+        self.bind(Container, self)
+        self.bind(Application, self)
+
     def set_response_handler(self, response_handler: ResponseHandler) -> None:
         self.response_handler = response_handler
 

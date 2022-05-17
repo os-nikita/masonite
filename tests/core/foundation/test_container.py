@@ -2,6 +2,8 @@ from tests import TestCase
 from tests.integrations.app.SayHi import SayHello
 from tests.integrations.app.GreetingService import GreetingService
 from tests.integrations.app.User import User
+from src.masonite.foundation import Application
+from src.masonite.container import Container
 
 
 class TestContainer(TestCase):
@@ -35,3 +37,12 @@ class TestContainer(TestCase):
         self.assertFalse(self.application.has(GreetingService))
         self.assertFalse(self.application.has(SayHello))
         self.assertFalse(self.application.has(User))
+
+    def test_container_can_resolve_itself_and_application(self):
+        self.assertTrue(self.application.has(Container))
+        container = self.application.make(Container)
+        self.assertIs(container, self.application)
+
+        self.assertTrue(self.application.has(Application))
+        app = self.application.make(Application)
+        self.assertIs(app, self.application)
